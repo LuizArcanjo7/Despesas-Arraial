@@ -27,7 +27,9 @@
 
             <div class="mb-4">
                 <label class="block text-sm font-medium mb-1">Quem pagou?</label>
-                <select id="pagador" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-400 outline-none"></select>
+                <select id="pagador" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-400 outline-none">
+                    <option value="" disabled selected>Selecione quem pagou a conta...</option>
+                </select>
             </div>
 
             <div class="mb-4">
@@ -70,7 +72,9 @@
                 <div>
                     <h3 class="text-sm font-bold text-indigo-600 mb-2">Cadastre a sua chave:</h3>
                     <div class="space-y-3">
-                        <select id="pix-nome" class="w-full border rounded p-2 focus:ring-2 focus:ring-indigo-400 outline-none"></select>
+                        <select id="pix-nome" class="w-full border rounded p-2 focus:ring-2 focus:ring-indigo-400 outline-none">
+                            <option value="" disabled selected>Selecione o seu nome...</option>
+                        </select>
                         
                         <div class="flex gap-2">
                             <select id="pix-tipo" class="border rounded p-2 focus:ring-2 focus:ring-indigo-400 outline-none w-1/3">
@@ -127,7 +131,6 @@
         const consumidoresDiv = document.getElementById('consumidores');
         const chkTodos = document.getElementById('chk-todos');
 
-        // Preenche as listas garantindo suporte perfeito para toque no celular
         pessoas.forEach((nome, index) => {
             let optPagador = document.createElement('option');
             optPagador.value = nome;
@@ -139,7 +142,6 @@
             optPix.textContent = nome;
             pixNomeSelect.appendChild(optPix);
 
-            // Novo formato de Checkbox à prova de falhas
             const chkId = `chk-${index}`;
             const div = document.createElement('div');
             div.className = "flex items-center space-x-2 text-sm";
@@ -150,7 +152,6 @@
             consumidoresDiv.appendChild(div);
         });
 
-        // Lógica do botão "Dividir para todos" atualizada
         chkTodos.addEventListener('change', (e) => {
             const checkboxes = document.querySelectorAll('.consumidor-chk');
             checkboxes.forEach(chk => { chk.checked = e.target.checked; });
@@ -174,11 +175,10 @@
             const chks = document.querySelectorAll('.consumidor-chk:checked');
             const consumidores = Array.from(chks).map(chk => chk.value);
 
-            if (!desc || isNaN(valor) || consumidores.length === 0) {
-                return alert("Preencha a descrição, o valor e selecione pelo menos um consumidor!");
+            if (!desc || isNaN(valor) || !pagador || consumidores.length === 0) {
+                return alert("Por favor: Preencha a descrição, o valor, selecione QUEM PAGOU e quem consumiu!");
             }
 
-            // Desabilita o botão para evitar clique duplo
             document.getElementById('btn-salvar').disabled = true;
             document.getElementById('btn-salvar').innerText = "Salvando...";
 
@@ -186,12 +186,14 @@
                 await addDoc(collection(db, "despesas"), {
                     desc: desc, valor: valor, pagador: pagador, consumidores: consumidores, data: new Date(), tipo: "despesa"
                 });
+                // Reseta os campos com sucesso
                 document.getElementById('desc').value = '';
                 document.getElementById('valor').value = '';
+                document.getElementById('pagador').value = ''; // Volta pro "Selecione..."
                 document.querySelectorAll('.consumidor-chk').forEach(chk => chk.checked = false);
                 chkTodos.checked = false; 
             } catch (error) {
-                alert("Erro ao salvar. Tente novamente.");
+                alert("Erro ao salvar. Verifique a internet e tente novamente.");
             } finally {
                 document.getElementById('btn-salvar').disabled = false;
                 document.getElementById('btn-salvar').innerText = "Adicionar Despesa";
@@ -232,7 +234,7 @@
 
             document.querySelectorAll('.btn-excluir').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
-                    if(confirm("Tem certeza que deseja cancelar este item? Os valores serão recalculados.")) {
+                    if(confirm("Tem certeza que deseja apagar?")) {
                         await deleteDoc(doc(db, "despesas", e.target.getAttribute('data-id')));
                     }
                 });
@@ -248,6 +250,7 @@
             const tipo = document.getElementById('pix-tipo').value;
             const chave = document.getElementById('pix-chave').value.trim();
 
+            if (!nome) return alert("Por favor, selecione o seu nome!");
             if (!chave) return alert("Por favor, digite a chave PIX!");
 
             document.getElementById('btn-salvar-pix').disabled = true;
@@ -255,10 +258,11 @@
             document.getElementById('btn-salvar-pix').disabled = false;
             
             document.getElementById('pix-chave').value = '';
+            document.getElementById('pix-nome').value = ''; // Volta pro "Selecione..."
             alert(`Chave PIX de ${nome} salva com sucesso!`);
         });
 
-        // Escutar Chaves PIX em Tempo Real
+        // Escutar Chaves PIX
         onSnapshot(collection(db, "pix_keys"), (snapshot) => {
             const listaPix = document.getElementById('lista-chaves-pix');
             listaPix.innerHTML = '';
@@ -285,14 +289,12 @@
             calcularAcertosESaldos();
         });
 
-        // MOTOR DE CÁLCULO COM PROTEÇÃO CONTRA DADOS ANTIGOS (NaN FIX)
+        // LÓGICA MATEMÁTICA
         function calcularAcertosESaldos() {
             let saldos = {};
-            // Inicia zerado apenas para as pessoas que estão na lista atual
             pessoas.forEach(p => saldos[p] = 0);
 
             despesasGlobais.forEach(d => {
-                // Proteção: se existir um nome velho no banco, inicializa em 0 para não quebrar a matemática
                 if (saldos[d.pagador] === undefined) saldos[d.pagador] = 0;
                 
                 if (d.consumidores && d.consumidores.length > 0) {
@@ -300,7 +302,6 @@
                     saldos[d.pagador] += d.valor; 
                     
                     d.consumidores.forEach(c => {
-                        // Proteção contra nome velho de consumidor
                         if (saldos[c] === undefined) saldos[c] = 0;
                         saldos[c] -= valorPorPessoa; 
                     });
@@ -310,9 +311,8 @@
             const listaSaldos = document.getElementById('lista-saldos');
             listaSaldos.innerHTML = '';
             
-            // Exibe o saldo apenas para quem está na lista atual
             pessoas.forEach(p => {
-                let valor = saldos[p] || 0; // Se der algum erro bizarro, força para 0
+                let valor = saldos[p] || 0;
                 if (valor > 0.01) {
                     listaSaldos.innerHTML += `<li class="flex justify-between items-center p-2 bg-green-50 rounded border border-green-100"><span class="font-bold">${p}</span> <span class="text-green-600">+ R$ ${valor.toFixed(2)}</span></li>`;
                 } else if (valor < -0.01) {
@@ -341,7 +341,7 @@
                 let infoPix = '';
                 if(chavesPixGlobais[cred.nome]) {
                     infoPix = `<div class="text-xs mt-1 bg-white p-1 rounded border border-blue-100 text-gray-600">
-                                  Chave PIX (${chavesPixGlobais[cred.nome].tipo}): 
+                                  PIX (${chavesPixGlobais[cred.nome].tipo}): 
                                   <span class="font-bold text-black cursor-text select-all">${chavesPixGlobais[cred.nome].chave}</span>
                                </div>`;
                 } else {
