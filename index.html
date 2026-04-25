@@ -146,4 +146,285 @@
 
             const chkId = `chk-${index}`;
             const div = document.createElement('div');
-            div.className = "flex items-center space-x-2 text-
+            div.className = "flex items-center space-x-2 text-sm bg-gray-50 p-2 rounded border border-gray-100";
+            div.innerHTML = `
+                <input type="checkbox" id="${chkId}" value="${nome}" class="consumidor-chk w-5 h-5 rounded cursor-pointer accent-blue-600 flex-shrink-0"> 
+                <label for="${chkId}" class="cursor-pointer select-none font-medium w-full">${nome}</label>
+            `;
+            consumidoresDiv.appendChild(div);
+        });
+
+        chkTodos.addEventListener('change', (e) => {
+            const checkboxes = document.querySelectorAll('.consumidor-chk');
+            checkboxes.forEach(chk => { chk.checked = e.target.checked; });
+        });
+
+        consumidoresDiv.addEventListener('change', (e) => {
+            if (e.target.classList.contains('consumidor-chk')) {
+                const total = document.querySelectorAll('.consumidor-chk').length;
+                const marcados = document.querySelectorAll('.consumidor-chk:checked').length;
+                chkTodos.checked = (total === marcados);
+            }
+        });
+
+        let despesasGlobais = []; 
+        let chavesPixGlobais = {}; 
+
+        document.getElementById('btn-salvar').addEventListener('click', async () => {
+            const desc = document.getElementById('desc').value.trim();
+            const valor = parseFloat(document.getElementById('valor').value);
+            const pagador = document.getElementById('pagador').value;
+            const chks = document.querySelectorAll('.consumidor-chk:checked');
+            const consumidores = Array.from(chks).map(chk => chk.value);
+
+            if (!desc) return alert("Erro: Digite a descrição da compra!");
+            if (isNaN(valor) || valor <= 0) return alert("Erro: Digite um valor válido (maior que zero)!");
+            if (!pagador) return alert("Erro: Selecione QUEM PAGOU a conta!");
+            if (consumidores.length === 0) return alert("Erro: Selecione pelo menos uma pessoa que consumiu!");
+
+            document.getElementById('btn-salvar').disabled = true;
+            document.getElementById('btn-salvar').innerText = "Salvando...";
+
+            try {
+                await addDoc(collection(db, "despesas"), {
+                    desc: desc, valor: valor, pagador: pagador, consumidores: consumidores, data: new Date(), tipo: "despesa"
+                });
+                
+                document.getElementById('desc').value = '';
+                document.getElementById('valor').value = '';
+                document.getElementById('pagador').value = ''; 
+                document.querySelectorAll('.consumidor-chk').forEach(chk => chk.checked = false);
+                chkTodos.checked = false; 
+            } catch (error) {
+                alert("Erro ao salvar a despesa. Verifique a internet.");
+            } finally {
+                document.getElementById('btn-salvar').disabled = false;
+                document.getElementById('btn-salvar').innerText = "Adicionar Despesa";
+            }
+        });
+
+        const q = query(collection(db, "despesas"), orderBy("data", "desc"));
+        onSnapshot(q, (snapshot) => {
+            const lista = document.getElementById('lista-despesas');
+            lista.innerHTML = '';
+            despesasGlobais = [];
+
+            snapshot.forEach((documento) => {
+                const d = documento.data();
+                const idDespesa = documento.id;
+                despesasGlobais.push(d);
+                
+                if (d.tipo === "pagamento") {
+                    lista.innerHTML += `
+                        <li class="bg-green-100 p-3 rounded border border-green-300 text-sm shadow-sm relative pr-10">
+                            <strong>${d.desc}</strong> - R$ ${d.valor.toFixed(2)}<br>
+                            <span class="text-green-800 text-xs mt-1 block">De: ${d.pagador} ➡️ Para: ${d.consumidores[0]}</span>
+                            <button data-id="${idDespesa}" class="btn-excluir absolute top-2 right-3 text-red-500 hover:text-red-700 font-bold text-lg" title="Cancelar pagamento">✕</button>
+                        </li>
+                    `;
+                } else {
+                    const textoConsumidores = d.consumidores.length === pessoas.length ? "Todos (15 pessoas)" : d.consumidores.join(', ');
+                    lista.innerHTML += `
+                        <li class="bg-gray-50 p-3 rounded border text-sm shadow-sm relative pr-10">
+                            <strong>${d.desc}</strong> - R$ ${d.valor.toFixed(2)}<br>
+                            <span class="text-gray-600">Pago por: <strong>${d.pagador}</strong></span><br>
+                            <span class="text-gray-500 text-xs mt-1 block">Consumido por: ${textoConsumidores}</span>
+                            <button data-id="${idDespesa}" class="btn-excluir absolute top-2 right-3 text-red-500 hover:text-red-700 font-bold text-lg" title="Apagar despesa">✕</button>
+                        </li>
+                    `;
+                }
+            });
+
+            document.querySelectorAll('.btn-excluir').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    if(confirm("Tem certeza que deseja apagar? Os saldos serão recalculados instantaneamente.")) {
+                        await deleteDoc(doc(db, "despesas", e.target.getAttribute('data-id')));
+                    }
+                });
+            });
+
+            calcularAcertosESaldos();
+        });
+
+
+        document.getElementById('btn-salvar-pix').addEventListener('click', async () => {
+            const nome = document.getElementById('pix-nome').value;
+            const tipo = document.getElementById('pix-tipo').value;
+            const chave = document.getElementById('pix-chave').value.trim();
+
+            if (!nome) return alert("Selecione o seu nome!");
+            if (!chave) return alert("Digite a chave PIX!");
+
+            document.getElementById('btn-salvar-pix').disabled = true;
+            await setDoc(doc(db, "pix_keys", nome), { tipo: tipo, chave: chave });
+            document.getElementById('btn-salvar-pix').disabled = false;
+            
+            document.getElementById('pix-chave').value = '';
+            document.getElementById('pix-nome').value = ''; 
+            alert(`Chave PIX de ${nome} salva com sucesso!`);
+        });
+
+        onSnapshot(collection(db, "pix_keys"), (snapshot) => {
+            const listaPix = document.getElementById('lista-chaves-pix');
+            listaPix.innerHTML = '';
+            chavesPixGlobais = {};
+
+            if(snapshot.empty) {
+                listaPix.innerHTML = '<li class="text-gray-400 italic">Nenhuma chave cadastrada ainda.</li>';
+            }
+
+            snapshot.forEach((documento) => {
+                const nome = documento.id;
+                const dados = documento.data();
+                chavesPixGlobais[nome] = dados;
+
+                listaPix.innerHTML += `
+                    <li class="border-b border-gray-100 last:border-0 pb-1 last:pb-0">
+                        <span class="font-bold text-gray-700">${nome}:</span> 
+                        <span class="text-indigo-600 select-all">${dados.chave}</span> 
+                        <span class="text-xs text-gray-400">(${dados.tipo})</span>
+                    </li>
+                `;
+            });
+
+            calcularAcertosESaldos();
+        });
+
+        // MOTOR DE CÁLCULO EXATO (PESSOA PARA PESSOA)
+        function calcularAcertosESaldos() {
+            let saldosIndividuais = {};
+            let dividas = {};
+
+            // Inicializa as matrizes para todos
+            pessoas.forEach(p => {
+                saldosIndividuais[p] = 0;
+                dividas[p] = {};
+                pessoas.forEach(p2 => { dividas[p][p2] = 0; });
+            });
+
+            despesasGlobais.forEach(d => {
+                // Cálculo para o Resumo do Saldo (Terceira Coluna)
+                if (saldosIndividuais[d.pagador] === undefined) saldosIndividuais[d.pagador] = 0;
+                
+                if (d.consumidores && d.consumidores.length > 0) {
+                    const valorPorPessoa = d.valor / d.consumidores.length;
+                    saldosIndividuais[d.pagador] += d.valor; 
+                    
+                    d.consumidores.forEach(c => {
+                        if (saldosIndividuais[c] === undefined) saldosIndividuais[c] = 0;
+                        saldosIndividuais[c] -= valorPorPessoa; 
+                        
+                        // Lógica Pessoa a Pessoa: c deve a d.pagador
+                        if (dividas[c] && dividas[c][d.pagador] !== undefined && c !== d.pagador) {
+                            if (d.tipo === "despesa") {
+                                dividas[c][d.pagador] += valorPorPessoa;
+                            } else if (d.tipo === "pagamento") {
+                                // Se é pagamento, o pagador abate a dívida com o credor
+                                dividas[d.pagador][c] -= d.valor;
+                            }
+                        }
+                    });
+                }
+            });
+
+            // Resolve dívidas cruzadas (Se A deve 50 pra B, e B deve 20 pra A, então A deve só 30 pra B)
+            for (let i = 0; i < pessoas.length; i++) {
+                for (let j = i + 1; j < pessoas.length; j++) {
+                    let p1 = pessoas[i];
+                    let p2 = pessoas[j];
+                    
+                    let p1DeveP2 = dividas[p1][p2];
+                    let p2DeveP1 = dividas[p2][p1];
+
+                    if (p1DeveP2 > p2DeveP1) {
+                        dividas[p1][p2] = p1DeveP2 - p2DeveP1;
+                        dividas[p2][p1] = 0;
+                    } else {
+                        dividas[p2][p1] = p2DeveP1 - p1DeveP2;
+                        dividas[p1][p2] = 0;
+                    }
+                }
+            }
+
+            // Exibe Terceira Coluna (Saldos)
+            const listaSaldos = document.getElementById('lista-saldos');
+            listaSaldos.innerHTML = '';
+            
+            pessoas.forEach(p => {
+                let valor = saldosIndividuais[p] || 0;
+                if (valor > 0.01) {
+                    listaSaldos.innerHTML += `<li class="flex justify-between items-center p-2 bg-green-50 rounded border border-green-100"><span class="font-bold">${p}</span> <span class="text-green-600">+ R$ ${valor.toFixed(2)}</span></li>`;
+                } else if (valor < -0.01) {
+                    listaSaldos.innerHTML += `<li class="flex justify-between items-center p-2 bg-red-50 rounded border border-red-100"><span class="font-bold">${p}</span> <span class="text-red-600">- R$ ${Math.abs(valor).toFixed(2)}</span></li>`;
+                } else {
+                    listaSaldos.innerHTML += `<li class="flex justify-between items-center p-2 bg-gray-50 rounded border border-gray-100 text-gray-400"><span>${p}</span> <span>R$ 0.00</span></li>`;
+                }
+            });
+
+            // Exibe Segunda Coluna (Transferências Exatas)
+            const listaAcertos = document.getElementById('lista-acertos');
+            listaAcertos.innerHTML = '';
+            let temDivida = false;
+            
+            pessoas.forEach(devedor => {
+                pessoas.forEach(credor => {
+                    let valorAcerto = dividas[devedor][credor];
+                    
+                    if (valorAcerto > 0.01) {
+                        temDivida = true;
+                        let infoPix = '';
+                        if(chavesPixGlobais[credor]) {
+                            infoPix = `<div class="text-xs mt-1 bg-white p-1 rounded border border-blue-100 text-gray-600">
+                                          PIX (${chavesPixGlobais[credor].tipo}): 
+                                          <span class="font-bold text-black cursor-text select-all">${chavesPixGlobais[credor].chave}</span>
+                                       </div>`;
+                        } else {
+                            infoPix = `<div class="text-xs mt-1 text-red-400 italic">PIX não cadastrado</div>`;
+                        }
+
+                        listaAcertos.innerHTML += `
+                            <li class="p-3 bg-blue-50 text-blue-900 rounded border border-blue-200 shadow-sm flex flex-col gap-2">
+                                <div class="text-sm">
+                                    <span class="font-bold text-red-600 uppercase">${devedor}</span> 
+                                    deve para 
+                                    <span class="font-bold text-green-700 uppercase">${credor}</span>:
+                                    <div class="text-lg font-black text-red-600 mt-1 mb-1">R$ ${valorAcerto.toFixed(2)}</div>
+                                    ${infoPix}
+                                </div>
+                                <button class="btn-dar-baixa bg-green-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-green-600 transition self-start flex items-center gap-1"
+                                        data-dev="${devedor}" data-cred="${credor}" data-val="${valorAcerto.toFixed(2)}">
+                                    ✔️ Dar Baixa (Pago)
+                                </button>
+                            </li>
+                        `;
+                    }
+                });
+            });
+
+            if(!temDivida) {
+                listaAcertos.innerHTML = "<li class='text-gray-500 italic p-3 text-center'>Tudo quite! Ninguém deve ninguém. 🍻</li>";
+            }
+
+            // Ativa os botões de baixa para a nova lógica
+            document.querySelectorAll('.btn-dar-baixa').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const devedor = e.target.getAttribute('data-dev');
+                    const credor = e.target.getAttribute('data-cred');
+                    const valorPago = parseFloat(e.target.getAttribute('data-val'));
+
+                    if(confirm(`Confirmar que ${devedor} pagou R$ ${valorPago.toFixed(2)} para ${credor}?`)) {
+                        await addDoc(collection(db, "despesas"), {
+                            desc: `💰 Acerto de Contas`,
+                            valor: valorPago,
+                            pagador: devedor,
+                            consumidores: [credor],
+                            data: new Date(),
+                            tipo: "pagamento"
+                        });
+                    }
+                });
+            });
+        }
+    </script>
+</body>
+</html>
