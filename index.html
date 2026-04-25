@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Despesas Marinhos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans p-4 md:p-8">
+
+    <div class="max-w-3xl mx-auto bg-white p-6 rounded-lg shadow-md">
+        <h1 class="text-2xl font-bold mb-6 text-center text-blue-600">💸 Despesas Marinhos</h1>
+
+        <div class="mb-8 p-4 bg-gray-50 rounded border">
+            <h2 class="text-xl font-semibold mb-4">Nova Despesa</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Descrição (ex: Cerveja, Carne)</label>
+                    <input type="text" id="desc" class="w-full border rounded p-2" placeholder="O que foi comprado?">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Valor Total (R$)</label>
+                    <input type="number" id="valor" class="w-full border rounded p-2" placeholder="0.00" step="0.01">
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-1">Quem pagou?</label>
+                <select id="pagador" class="w-full border rounded p-2">
+                    </select>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-2">Quem consumiu? (Dividir entre:)</label>
+                <div id="consumidores" class="grid grid-cols-3 md:grid-cols-5 gap-2">
+                    </div>
+            </div>
+
+            <button id="btn-salvar" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded hover:bg-blue-700 transition">
+                Adicionar Despesa
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+                <h2 class="text-xl font-semibold mb-4 border-b pb-2">Despesas Lançadas</h2>
+                <ul id="lista-despesas" class="space-y-3">
+                    </ul>
+            </div>
+            
+            <div>
+                <h2 class="text-xl font-semibold mb-4 border-b pb-2 text-green-700">Como acertar as contas:</h2>
+                <ul id="lista-acertos" class="space-y-3 font-medium">
+                    </ul>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Importa os módulos do Firebase (Versão Web/CDN)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // Suas configurações do Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyCPBVS177muDRevsEdAnOnYMnfl-eek6lY",
+            authDomain: "despesas-marinhos.firebaseapp.com",
+            projectId: "despesas-marinhos",
+            storageBucket: "despesas-marinhos.firebasestorage.app",
+            messagingSenderId: "24330037755",
+            appId: "1:24330037755:web:cf9a7e835c43226c6cc35e",
+            measurementId: "G-ZPJJPJ0EFE"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Lista oficial
+        const pessoas = [
+            "Uana", "Luiz", "Mimi", "Marlene", "Fernando", 
+            "Rose", "Victor", "Silvia", "Vovó Maria", "Fabi", 
+            "Roger", "Lara", "Guilherme", "Lorena", "Valdir"
+        ];
+
+        // Inicializa a interface (Dropdowns e Checkboxes)
+        const pagadorSelect = document.getElementById('pagador');
+        const consumidoresDiv = document.getElementById('consumidores');
+
+        pessoas.forEach(nome => {
+            // Preenche o Select de quem pagou
+            const option = document.createElement('option');
+            option.value = nome;
+            option.textContent = nome;
+            pagadorSelect.appendChild(option);
+
+            // Preenche os Checkboxes de quem consumiu
+            const label = document.createElement('label');
+            label.className = "flex items-center space-x-2 text-sm";
+            label.innerHTML = `<input type="checkbox" value="${nome}" class="consumidor-chk rounded"> <span>${nome}</span>`;
+            consumidoresDiv.appendChild(label);
+        });
+
+        // Salvar Despesa
+        document.getElementById('btn-salvar').addEventListener('click', async () => {
+            const desc = document.getElementById('desc').value;
+            const valor = parseFloat(document.getElementById('valor').value);
+            const pagador = document.getElementById('pagador').value;
+            
+            // Pega todo mundo que foi marcado no checkbox
+            const chks = document.querySelectorAll('.consumidor-chk:checked');
+            const consumidores = Array.from(chks).map(chk => chk.value);
+
+            if (!desc || isNaN(valor) || consumidores.length === 0) {
+                alert("Preencha todos os campos e selecione pelo menos um consumidor!");
+                return;
+            }
+
+            // Envia para o banco de dados Firestore
+            await addDoc(collection(db, "despesas"), {
+                desc: desc,
+                valor: valor,
+                pagador: pagador,
+                consumidores: consumidores,
+                data: new Date()
+            });
+
+            // Limpa o formulário
+            document.getElementById('desc').value = '';
+            document.getElementById('valor').value = '';
+            document.querySelectorAll('.consumidor-chk').forEach(chk => chk.checked = false);
+        });
+
+        // Escutar as despesas em tempo real e calcular quem deve quem
+        const q = query(collection(db, "despesas"), orderBy("data", "desc"));
+        onSnapshot(q, (snapshot) => {
+            const lista = document.getElementById('lista-despesas');
+            lista.innerHTML = '';
+            let despesas = [];
+
+            snapshot.forEach((doc) => {
+                const d = doc.data();
+                despesas.push(d);
+                
+                // Mostra na tela a despesa lançada
+                lista.innerHTML += `
+                    <li class="bg-gray-50 p-3 rounded border text-sm shadow-sm">
+                        <strong>${d.desc}</strong> - R$ ${d.valor.toFixed(2)}<br>
+                        <span class="text-gray-600">Pago por: <strong>${d.pagador}</strong></span><br>
+                        <span class="text-gray-500 text-xs mt-1 block">Consumido por: ${d.consumidores.join(', ')}</span>
+                    </li>
+                `;
+            });
+
+            calcularAcertos(despesas);
+        });
+
+        // O coração do app: Algoritmo para calcular quem deve para quem
+        function calcularAcertos(despesas) {
+            let saldos = {};
+            pessoas.forEach(p => saldos[p] = 0);
+
+            // Calcula o saldo final de cada um (+ significa que têm a receber, - significa que estão devendo)
+            despesas.forEach(d => {
+                const valorPorPessoa = d.valor / d.consumidores.length;
+                saldos[d.pagador] += d.valor; // Pagador ganha o crédito do valor total
+                
+                d.consumidores.forEach(c => {
+                    saldos[c] -= valorPorPessoa; // Consumidores têm o valor debitado
+                });
+            });
+
+            // Separa quem deve e quem tem a receber
+            let devedores = [];
+            let credores = [];
+            for (let p in saldos) {
+                if (saldos[p] < -0.01) devedores.push({ nome: p, valor: Math.abs(saldos[p]) });
+                if (saldos[p] > 0.01) credores.push({ nome: p, valor: saldos[p] });
+            }
+
+            // Casa os devedores com os credores para gerar os pagamentos mais simples
+            const listaAcertos = document.getElementById('lista-acertos');
+            listaAcertos.innerHTML = '';
+            
+            let i = 0, j = 0;
+            while (i < devedores.length && j < credores.length) {
+                let dev = devedores[i];
+                let cred = credores[j];
+                let valorAcerto = Math.min(dev.valor, cred.valor);
+
+                listaAcertos.innerHTML += `
+                    <li class="p-3 bg-green-50 text-green-800 rounded border border-green-200 shadow-sm flex items-center gap-2">
+                        <span>➡️</span>
+                        <div>
+                            <strong>${dev.nome}</strong> paga 
+                            <span class="font-bold text-green-900">R$ ${valorAcerto.toFixed(2)}</span> 
+                            para <strong>${cred.nome}</strong>
+                        </div>
+                    </li>
+                `;
+
+                dev.valor -= valorAcerto;
+                cred.valor -= valorAcerto;
+
+                if (dev.valor < 0.01) i++;
+                if (cred.valor < 0.01) j++;
+            }
+
+            if(listaAcertos.innerHTML === '') {
+                listaAcertos.innerHTML = "<li class='text-gray-500 italic p-3 text-center'>Tudo quite! Ninguém deve ninguém.</li>";
+            }
+        }
+    </script>
+</body>
+</html>
