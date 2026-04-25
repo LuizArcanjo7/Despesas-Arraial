@@ -27,23 +27,23 @@
 
             <div class="mb-4">
                 <label class="block text-sm font-medium mb-1">Quem pagou?</label>
-                <select id="pagador" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-400 outline-none">
+                <select id="pagador" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-400 outline-none font-medium">
                     <option value="" disabled selected>Selecione quem pagou a conta...</option>
                 </select>
             </div>
 
             <div class="mb-4">
-                <div class="flex justify-between items-center mb-2">
-                    <label class="block text-sm font-medium">Dividir entre:</label>
-                    <div class="flex items-center space-x-2 text-sm font-bold text-blue-600 hover:bg-blue-50 p-1 rounded transition">
-                        <input type="checkbox" id="chk-todos" class="w-5 h-5 rounded cursor-pointer accent-blue-600">
-                        <label for="chk-todos" class="cursor-pointer select-none">Dividir para todos</label>
-                    </div>
+                <div class="flex justify-between items-center mb-3">
+                    <label class="block text-sm font-medium">Quem consumiu? (Dividir entre:)</label>
+                    <label class="flex items-center space-x-2 text-sm font-bold text-white bg-blue-500 hover:bg-blue-600 py-1 px-3 rounded shadow cursor-pointer transition">
+                        <input type="checkbox" id="chk-todos" class="w-4 h-4 cursor-pointer accent-white">
+                        <span>Marcar / Desmarcar Todos</span>
+                    </label>
                 </div>
-                <div id="consumidores" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 border-t pt-3"></div>
+                <div id="consumidores" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 border-t pt-4"></div>
             </div>
 
-            <button id="btn-salvar" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded hover:bg-blue-700 transition text-lg">
+            <button id="btn-salvar" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded hover:bg-blue-700 transition text-lg mt-2 shadow-lg">
                 Adicionar Despesa
             </button>
         </div>
@@ -56,11 +56,14 @@
             
             <div class="md:col-span-1">
                 <h2 class="text-lg font-semibold mb-4 border-b pb-2 text-blue-700">🔄 Transferências Pendentes</h2>
+                <div class="text-xs text-gray-500 mb-3 bg-blue-50 p-2 rounded border border-blue-100">
+                    💡 O cálculo mostra exatamente para quem você deve pagar as contas consumidas.
+                </div>
                 <ul id="lista-acertos" class="space-y-3 font-medium"></ul>
             </div>
 
             <div class="md:col-span-1">
-                <h2 class="text-lg font-semibold mb-4 border-b pb-2 text-gray-700">💰 Saldo de Cada Um</h2>
+                <h2 class="text-lg font-semibold mb-4 border-b pb-2 text-gray-700">💰 Saldo Total da Viagem</h2>
                 <ul id="lista-saldos" class="space-y-2 text-sm font-medium"></ul>
             </div>
         </div>
@@ -100,7 +103,6 @@
                 </div>
             </div>
         </div>
-
     </div>
 
     <script type="module">
@@ -144,236 +146,4 @@
 
             const chkId = `chk-${index}`;
             const div = document.createElement('div');
-            div.className = "flex items-center space-x-2 text-sm";
-            div.innerHTML = `
-                <input type="checkbox" id="${chkId}" value="${nome}" class="consumidor-chk w-5 h-5 rounded cursor-pointer accent-blue-600"> 
-                <label for="${chkId}" class="cursor-pointer select-none">${nome}</label>
-            `;
-            consumidoresDiv.appendChild(div);
-        });
-
-        chkTodos.addEventListener('change', (e) => {
-            const checkboxes = document.querySelectorAll('.consumidor-chk');
-            checkboxes.forEach(chk => { chk.checked = e.target.checked; });
-        });
-
-        consumidoresDiv.addEventListener('change', (e) => {
-            if (e.target.classList.contains('consumidor-chk')) {
-                const totalCheckboxes = document.querySelectorAll('.consumidor-chk').length;
-                const marcados = document.querySelectorAll('.consumidor-chk:checked').length;
-                chkTodos.checked = (totalCheckboxes === marcados);
-            }
-        });
-
-        let despesasGlobais = []; 
-        let chavesPixGlobais = {}; 
-
-        document.getElementById('btn-salvar').addEventListener('click', async () => {
-            const desc = document.getElementById('desc').value;
-            const valor = parseFloat(document.getElementById('valor').value);
-            const pagador = document.getElementById('pagador').value;
-            const chks = document.querySelectorAll('.consumidor-chk:checked');
-            const consumidores = Array.from(chks).map(chk => chk.value);
-
-            if (!desc || isNaN(valor) || !pagador || consumidores.length === 0) {
-                return alert("Por favor: Preencha a descrição, o valor, selecione QUEM PAGOU e quem consumiu!");
-            }
-
-            document.getElementById('btn-salvar').disabled = true;
-            document.getElementById('btn-salvar').innerText = "Salvando...";
-
-            try {
-                await addDoc(collection(db, "despesas"), {
-                    desc: desc, valor: valor, pagador: pagador, consumidores: consumidores, data: new Date(), tipo: "despesa"
-                });
-                // Reseta os campos com sucesso
-                document.getElementById('desc').value = '';
-                document.getElementById('valor').value = '';
-                document.getElementById('pagador').value = ''; // Volta pro "Selecione..."
-                document.querySelectorAll('.consumidor-chk').forEach(chk => chk.checked = false);
-                chkTodos.checked = false; 
-            } catch (error) {
-                alert("Erro ao salvar. Verifique a internet e tente novamente.");
-            } finally {
-                document.getElementById('btn-salvar').disabled = false;
-                document.getElementById('btn-salvar').innerText = "Adicionar Despesa";
-            }
-        });
-
-        const q = query(collection(db, "despesas"), orderBy("data", "desc"));
-        onSnapshot(q, (snapshot) => {
-            const lista = document.getElementById('lista-despesas');
-            lista.innerHTML = '';
-            despesasGlobais = [];
-
-            snapshot.forEach((documento) => {
-                const d = documento.data();
-                const idDespesa = documento.id;
-                despesasGlobais.push(d);
-                
-                if (d.tipo === "pagamento") {
-                    lista.innerHTML += `
-                        <li class="bg-green-100 p-3 rounded border border-green-300 text-sm shadow-sm relative pr-10">
-                            <strong>${d.desc}</strong> - R$ ${d.valor.toFixed(2)}<br>
-                            <span class="text-green-800 text-xs mt-1 block">De: ${d.pagador} ➡️ Para: ${d.consumidores[0]}</span>
-                            <button data-id="${idDespesa}" class="btn-excluir absolute top-2 right-3 text-red-500 hover:text-red-700 font-bold text-lg" title="Cancelar pagamento">✕</button>
-                        </li>
-                    `;
-                } else {
-                    const textoConsumidores = d.consumidores.length === pessoas.length ? "Todos" : d.consumidores.join(', ');
-                    lista.innerHTML += `
-                        <li class="bg-gray-50 p-3 rounded border text-sm shadow-sm relative pr-10">
-                            <strong>${d.desc}</strong> - R$ ${d.valor.toFixed(2)}<br>
-                            <span class="text-gray-600">Pago por: <strong>${d.pagador}</strong></span><br>
-                            <span class="text-gray-500 text-xs mt-1 block">Consumido por: ${textoConsumidores}</span>
-                            <button data-id="${idDespesa}" class="btn-excluir absolute top-2 right-3 text-red-500 hover:text-red-700 font-bold text-lg" title="Apagar despesa">✕</button>
-                        </li>
-                    `;
-                }
-            });
-
-            document.querySelectorAll('.btn-excluir').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    if(confirm("Tem certeza que deseja apagar?")) {
-                        await deleteDoc(doc(db, "despesas", e.target.getAttribute('data-id')));
-                    }
-                });
-            });
-
-            calcularAcertosESaldos();
-        });
-
-
-        // Salvar Chave PIX
-        document.getElementById('btn-salvar-pix').addEventListener('click', async () => {
-            const nome = document.getElementById('pix-nome').value;
-            const tipo = document.getElementById('pix-tipo').value;
-            const chave = document.getElementById('pix-chave').value.trim();
-
-            if (!nome) return alert("Por favor, selecione o seu nome!");
-            if (!chave) return alert("Por favor, digite a chave PIX!");
-
-            document.getElementById('btn-salvar-pix').disabled = true;
-            await setDoc(doc(db, "pix_keys", nome), { tipo: tipo, chave: chave });
-            document.getElementById('btn-salvar-pix').disabled = false;
-            
-            document.getElementById('pix-chave').value = '';
-            document.getElementById('pix-nome').value = ''; // Volta pro "Selecione..."
-            alert(`Chave PIX de ${nome} salva com sucesso!`);
-        });
-
-        // Escutar Chaves PIX
-        onSnapshot(collection(db, "pix_keys"), (snapshot) => {
-            const listaPix = document.getElementById('lista-chaves-pix');
-            listaPix.innerHTML = '';
-            chavesPixGlobais = {};
-
-            if(snapshot.empty) {
-                listaPix.innerHTML = '<li class="text-gray-400 italic">Nenhuma chave cadastrada ainda.</li>';
-            }
-
-            snapshot.forEach((documento) => {
-                const nome = documento.id;
-                const dados = documento.data();
-                chavesPixGlobais[nome] = dados;
-
-                listaPix.innerHTML += `
-                    <li class="border-b border-gray-100 last:border-0 pb-1 last:pb-0">
-                        <span class="font-bold text-gray-700">${nome}:</span> 
-                        <span class="text-indigo-600 select-all">${dados.chave}</span> 
-                        <span class="text-xs text-gray-400">(${dados.tipo})</span>
-                    </li>
-                `;
-            });
-
-            calcularAcertosESaldos();
-        });
-
-        // LÓGICA MATEMÁTICA
-        function calcularAcertosESaldos() {
-            let saldos = {};
-            pessoas.forEach(p => saldos[p] = 0);
-
-            despesasGlobais.forEach(d => {
-                if (saldos[d.pagador] === undefined) saldos[d.pagador] = 0;
-                
-                if (d.consumidores && d.consumidores.length > 0) {
-                    const valorPorPessoa = d.valor / d.consumidores.length;
-                    saldos[d.pagador] += d.valor; 
-                    
-                    d.consumidores.forEach(c => {
-                        if (saldos[c] === undefined) saldos[c] = 0;
-                        saldos[c] -= valorPorPessoa; 
-                    });
-                }
-            });
-
-            const listaSaldos = document.getElementById('lista-saldos');
-            listaSaldos.innerHTML = '';
-            
-            pessoas.forEach(p => {
-                let valor = saldos[p] || 0;
-                if (valor > 0.01) {
-                    listaSaldos.innerHTML += `<li class="flex justify-between items-center p-2 bg-green-50 rounded border border-green-100"><span class="font-bold">${p}</span> <span class="text-green-600">+ R$ ${valor.toFixed(2)}</span></li>`;
-                } else if (valor < -0.01) {
-                    listaSaldos.innerHTML += `<li class="flex justify-between items-center p-2 bg-red-50 rounded border border-red-100"><span class="font-bold">${p}</span> <span class="text-red-600">- R$ ${Math.abs(valor).toFixed(2)}</span></li>`;
-                } else {
-                    listaSaldos.innerHTML += `<li class="flex justify-between items-center p-2 bg-gray-50 rounded border border-gray-100 text-gray-400"><span>${p}</span> <span>R$ 0.00</span></li>`;
-                }
-            });
-
-            let devedores = [];
-            let credores = [];
-            for (let p in saldos) {
-                if (saldos[p] && saldos[p] < -0.01) devedores.push({ nome: p, valor: Math.abs(saldos[p]) });
-                if (saldos[p] && saldos[p] > 0.01) credores.push({ nome: p, valor: saldos[p] });
-            }
-
-            const listaAcertos = document.getElementById('lista-acertos');
-            listaAcertos.innerHTML = '';
-            
-            let i = 0, j = 0;
-            while (i < devedores.length && j < credores.length) {
-                let dev = devedores[i];
-                let cred = credores[j];
-                let valorAcerto = Math.min(dev.valor, cred.valor);
-
-                let infoPix = '';
-                if(chavesPixGlobais[cred.nome]) {
-                    infoPix = `<div class="text-xs mt-1 bg-white p-1 rounded border border-blue-100 text-gray-600">
-                                  PIX (${chavesPixGlobais[cred.nome].tipo}): 
-                                  <span class="font-bold text-black cursor-text select-all">${chavesPixGlobais[cred.nome].chave}</span>
-                               </div>`;
-                } else {
-                    infoPix = `<div class="text-xs mt-1 text-red-400 italic">PIX não cadastrado</div>`;
-                }
-
-                listaAcertos.innerHTML += `
-                    <li class="p-3 bg-blue-50 text-blue-900 rounded border border-blue-200 shadow-sm flex flex-col gap-2">
-                        <div class="text-sm">
-                            <strong>${dev.nome}</strong> deve 
-                            <span class="font-bold text-red-600">R$ ${valorAcerto.toFixed(2)}</span> 
-                            para <strong>${cred.nome}</strong>
-                            ${infoPix}
-                        </div>
-                        <button class="btn-dar-baixa bg-green-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-green-600 transition self-start flex items-center gap-1"
-                                data-dev="${dev.nome}" data-cred="${cred.nome}" data-val="${valorAcerto.toFixed(2)}">
-                            ✔️ Dar Baixa (Pago)
-                        </button>
-                    </li>
-                `;
-
-                dev.valor -= valorAcerto;
-                cred.valor -= valorAcerto;
-
-                if (dev.valor < 0.01) i++;
-                if (cred.valor < 0.01) j++;
-            }
-
-            if(listaAcertos.innerHTML === '') {
-                listaAcertos.innerHTML = "<li class='text-gray-500 italic p-3 text-center'>Tudo quite! 🍻</li>";
-            }
-        }
-    </script>
-</body>
-</html>
+            div.className = "flex items-center space-x-2 text-
