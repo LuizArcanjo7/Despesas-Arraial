@@ -11,23 +11,23 @@
     <div class="max-w-5xl mx-auto bg-white p-6 rounded-lg shadow-md">
         <h1 class="text-2xl font-bold mb-6 text-center text-blue-600">💸 Despesas Arraial</h1>
 
-        <div class="mb-8 p-4 bg-gray-50 rounded border">
-            <h2 class="text-xl font-semibold mb-4">Nova Despesa</h2>
+        <div class="mb-8 p-4 bg-gray-50 rounded border border-gray-200">
+            <h2 class="text-xl font-semibold mb-4 text-gray-700">🛒 Nova Despesa</h2>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
                     <label class="block text-sm font-medium mb-1">Descrição (ex: Cerveja, Carne)</label>
-                    <input type="text" id="desc" class="w-full border rounded p-2" placeholder="O que foi comprado?">
+                    <input type="text" id="desc" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-400 outline-none" placeholder="O que foi comprado?">
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1">Valor Total (R$)</label>
-                    <input type="number" id="valor" class="w-full border rounded p-2" placeholder="0.00" step="0.01">
+                    <input type="number" id="valor" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-400 outline-none" placeholder="0.00" step="0.01">
                 </div>
             </div>
 
             <div class="mb-4">
                 <label class="block text-sm font-medium mb-1">Quem pagou?</label>
-                <select id="pagador" class="w-full border rounded p-2"></select>
+                <select id="pagador" class="w-full border rounded p-2 focus:ring-2 focus:ring-blue-400 outline-none"></select>
             </div>
 
             <div class="mb-4">
@@ -46,27 +46,63 @@
             </button>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div class="md:col-span-1">
-                <h2 class="text-lg font-semibold mb-4 border-b pb-2">Histórico Lançado</h2>
+                <h2 class="text-lg font-semibold mb-4 border-b pb-2">📋 Histórico Lançado</h2>
                 <ul id="lista-despesas" class="space-y-3"></ul>
             </div>
             
             <div class="md:col-span-1">
-                <h2 class="text-lg font-semibold mb-4 border-b pb-2 text-blue-700">Transferências Pendentes:</h2>
+                <h2 class="text-lg font-semibold mb-4 border-b pb-2 text-blue-700">🔄 Transferências Pendentes</h2>
                 <ul id="lista-acertos" class="space-y-3 font-medium"></ul>
             </div>
 
             <div class="md:col-span-1">
-                <h2 class="text-lg font-semibold mb-4 border-b pb-2 text-gray-700">Saldo de Cada Um:</h2>
+                <h2 class="text-lg font-semibold mb-4 border-b pb-2 text-gray-700">💰 Saldo de Cada Um</h2>
                 <ul id="lista-saldos" class="space-y-2 text-sm font-medium"></ul>
             </div>
         </div>
+
+        <div class="p-4 bg-indigo-50 rounded border border-indigo-200">
+            <h2 class="text-xl font-semibold mb-4 text-indigo-800">🔑 Chaves PIX da Galera</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                    <h3 class="text-sm font-bold text-indigo-600 mb-2">Cadastre a sua chave:</h3>
+                    <div class="space-y-3">
+                        <select id="pix-nome" class="w-full border rounded p-2 focus:ring-2 focus:ring-indigo-400 outline-none"></select>
+                        
+                        <div class="flex gap-2">
+                            <select id="pix-tipo" class="border rounded p-2 focus:ring-2 focus:ring-indigo-400 outline-none">
+                                <option value="Celular">Celular</option>
+                                <option value="CPF">CPF</option>
+                                <option value="E-mail">E-mail</option>
+                                <option value="Aleatória">Aleatória</option>
+                            </select>
+                            <input type="text" id="pix-chave" class="w-full border rounded p-2 focus:ring-2 focus:ring-indigo-400 outline-none" placeholder="Digite sua chave PIX">
+                        </div>
+                        
+                        <button id="btn-salvar-pix" class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded hover:bg-indigo-700 transition">
+                            Salvar Chave PIX
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-sm font-bold text-indigo-600 mb-2">Chaves Cadastradas:</h3>
+                    <ul id="lista-chaves-pix" class="space-y-2 text-sm bg-white p-3 rounded border">
+                        <li class="text-gray-400 italic">Carregando chaves...</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        // NOVIDADE: Importei o setDoc para salvar o PIX
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCPBVS177muDRevsEdAnOnYMnfl-eek6lY",
@@ -81,7 +117,6 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // LISTA DE PESSOAS ATUALIZADA CONFORME A IMAGEM
         const pessoas = [
             "Luana", "Luiz", "Mimi", "Marlene", "Fernando", 
             "Rose", "Victor", "Vovó Silvia", "Vovó Maria", "Vovó Fabi", 
@@ -89,16 +124,25 @@
         ];
 
         const pagadorSelect = document.getElementById('pagador');
+        const pixNomeSelect = document.getElementById('pix-nome');
         const consumidoresDiv = document.getElementById('consumidores');
         const chkTodos = document.getElementById('chk-todos');
 
         // Preenche as listas
         pessoas.forEach(nome => {
-            const option = document.createElement('option');
-            option.value = nome;
-            option.textContent = nome;
-            pagadorSelect.appendChild(option);
+            // Select de quem pagou
+            let optPagador = document.createElement('option');
+            optPagador.value = nome;
+            optPagador.textContent = nome;
+            pagadorSelect.appendChild(optPagador);
 
+            // Select do PIX
+            let optPix = document.createElement('option');
+            optPix.value = nome;
+            optPix.textContent = nome;
+            pixNomeSelect.appendChild(optPix);
+
+            // Checkboxes
             const label = document.createElement('label');
             label.className = "flex items-center space-x-2 text-sm";
             label.innerHTML = `<input type="checkbox" value="${nome}" class="consumidor-chk rounded"> <span>${nome}</span>`;
@@ -108,12 +152,9 @@
         // Lógica do botão "Dividir para todos"
         chkTodos.addEventListener('change', (e) => {
             const checkboxes = document.querySelectorAll('.consumidor-chk');
-            checkboxes.forEach(chk => {
-                chk.checked = e.target.checked;
-            });
+            checkboxes.forEach(chk => { chk.checked = e.target.checked; });
         });
 
-        // Lógica para desmarcar o "Dividir para todos" se alguém desmarcar uma pessoa manualmente
         consumidoresDiv.addEventListener('change', (e) => {
             if (e.target.classList.contains('consumidor-chk')) {
                 const totalCheckboxes = document.querySelectorAll('.consumidor-chk').length;
@@ -122,7 +163,12 @@
             }
         });
 
-        // Salvar Nova Despesa
+        // -----------------------------------------
+        // GERENCIAMENTO DE DESPESAS
+        // -----------------------------------------
+        let despesasGlobais = []; // Guarda as despesas globalmente para recalcular quando um PIX for cadastrado
+        let chavesPixGlobais = {}; // Guarda as chaves PIX
+
         document.getElementById('btn-salvar').addEventListener('click', async () => {
             const desc = document.getElementById('desc').value;
             const valor = parseFloat(document.getElementById('valor').value);
@@ -131,37 +177,29 @@
             const consumidores = Array.from(chks).map(chk => chk.value);
 
             if (!desc || isNaN(valor) || consumidores.length === 0) {
-                alert("Preencha todos os campos e selecione pelo menos um consumidor!");
-                return;
+                return alert("Preencha todos os campos e selecione pelo menos um consumidor!");
             }
 
             await addDoc(collection(db, "despesas"), {
-                desc: desc,
-                valor: valor,
-                pagador: pagador,
-                consumidores: consumidores,
-                data: new Date(),
-                tipo: "despesa"
+                desc: desc, valor: valor, pagador: pagador, consumidores: consumidores, data: new Date(), tipo: "despesa"
             });
 
-            // Limpa o formulário após salvar
             document.getElementById('desc').value = '';
             document.getElementById('valor').value = '';
             document.querySelectorAll('.consumidor-chk').forEach(chk => chk.checked = false);
             chkTodos.checked = false; 
         });
 
-        // Ouvir o Banco de Dados em Tempo Real
         const q = query(collection(db, "despesas"), orderBy("data", "desc"));
         onSnapshot(q, (snapshot) => {
             const lista = document.getElementById('lista-despesas');
             lista.innerHTML = '';
-            let despesas = [];
+            despesasGlobais = [];
 
             snapshot.forEach((documento) => {
                 const d = documento.data();
                 const idDespesa = documento.id;
-                despesas.push(d);
+                despesasGlobais.push(d);
                 
                 if (d.tipo === "pagamento") {
                     lista.innerHTML += `
@@ -172,9 +210,7 @@
                         </li>
                     `;
                 } else {
-                    // Verifica se todo mundo consumiu para exibir "Todos" ao invés de listar 15 nomes
                     const textoConsumidores = d.consumidores.length === pessoas.length ? "Todos" : d.consumidores.join(', ');
-                    
                     lista.innerHTML += `
                         <li class="bg-gray-50 p-3 rounded border text-sm shadow-sm relative pr-10">
                             <strong>${d.desc}</strong> - R$ ${d.valor.toFixed(2)}<br>
@@ -188,22 +224,72 @@
 
             document.querySelectorAll('.btn-excluir').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
-                    const idParaApagar = e.target.getAttribute('data-id');
                     if(confirm("Tem certeza que deseja cancelar este item? Os valores serão recalculados.")) {
-                        await deleteDoc(doc(db, "despesas", idParaApagar));
+                        await deleteDoc(doc(db, "despesas", e.target.getAttribute('data-id')));
                     }
                 });
             });
 
-            calcularAcertosESaldos(despesas);
+            calcularAcertosESaldos();
         });
 
-        // Calcular Saldos e Quem Deve Quem
-        function calcularAcertosESaldos(despesas) {
+
+        // -----------------------------------------
+        // GERENCIAMENTO DO PIX
+        // -----------------------------------------
+        
+        // Salvar Chave PIX
+        document.getElementById('btn-salvar-pix').addEventListener('click', async () => {
+            const nome = document.getElementById('pix-nome').value;
+            const tipo = document.getElementById('pix-tipo').value;
+            const chave = document.getElementById('pix-chave').value.trim();
+
+            if (!chave) return alert("Por favor, digite a chave PIX!");
+
+            // setDoc salva usando o nome da pessoa como ID. Se já existir, ele atualiza!
+            await setDoc(doc(db, "pix_keys", nome), { tipo: tipo, chave: chave });
+            
+            document.getElementById('pix-chave').value = '';
+            alert(`Chave PIX de ${nome} salva com sucesso!`);
+        });
+
+        // Escutar Chaves PIX em Tempo Real
+        onSnapshot(collection(db, "pix_keys"), (snapshot) => {
+            const listaPix = document.getElementById('lista-chaves-pix');
+            listaPix.innerHTML = '';
+            chavesPixGlobais = {};
+
+            if(snapshot.empty) {
+                listaPix.innerHTML = '<li class="text-gray-400 italic">Nenhuma chave cadastrada ainda.</li>';
+            }
+
+            snapshot.forEach((documento) => {
+                const nome = documento.id;
+                const dados = documento.data();
+                chavesPixGlobais[nome] = dados;
+
+                listaPix.innerHTML += `
+                    <li class="border-b border-gray-100 last:border-0 pb-1 last:pb-0">
+                        <span class="font-bold text-gray-700">${nome}:</span> 
+                        <span class="text-indigo-600">${dados.chave}</span> 
+                        <span class="text-xs text-gray-400">(${dados.tipo})</span>
+                    </li>
+                `;
+            });
+
+            // Recalcula os acertos para exibir o PIX na lista de dívidas caso alguém atualize
+            calcularAcertosESaldos();
+        });
+
+
+        // -----------------------------------------
+        // MOTOR DE CÁLCULO
+        // -----------------------------------------
+        function calcularAcertosESaldos() {
             let saldos = {};
             pessoas.forEach(p => saldos[p] = 0);
 
-            despesas.forEach(d => {
+            despesasGlobais.forEach(d => {
                 const valorPorPessoa = d.valor / d.consumidores.length;
                 saldos[d.pagador] += d.valor; 
                 d.consumidores.forEach(c => {
@@ -240,12 +326,24 @@
                 let cred = credores[j];
                 let valorAcerto = Math.min(dev.valor, cred.valor);
 
+                // Busca o PIX do credor (quem vai receber)
+                let infoPix = '';
+                if(chavesPixGlobais[cred.nome]) {
+                    infoPix = `<div class="text-xs mt-1 bg-white p-1 rounded border border-blue-100 text-gray-600">
+                                  Chave PIX (${chavesPixGlobais[cred.nome].tipo}): 
+                                  <span class="font-bold text-black cursor-text select-all">${chavesPixGlobais[cred.nome].chave}</span>
+                               </div>`;
+                } else {
+                    infoPix = `<div class="text-xs mt-1 text-red-400 italic">PIX não cadastrado</div>`;
+                }
+
                 listaAcertos.innerHTML += `
                     <li class="p-3 bg-blue-50 text-blue-900 rounded border border-blue-200 shadow-sm flex flex-col gap-2">
                         <div class="text-sm">
                             <strong>${dev.nome}</strong> deve 
                             <span class="font-bold text-red-600">R$ ${valorAcerto.toFixed(2)}</span> 
                             para <strong>${cred.nome}</strong>
+                            ${infoPix}
                         </div>
                         <button class="btn-dar-baixa bg-green-500 text-white text-xs font-bold py-1 px-2 rounded hover:bg-green-600 transition self-start flex items-center gap-1"
                                 data-dev="${dev.nome}" data-cred="${cred.nome}" data-val="${valorAcerto.toFixed(2)}">
