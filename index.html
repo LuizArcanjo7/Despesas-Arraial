@@ -33,15 +33,15 @@
             <div class="mb-4">
                 <div class="flex justify-between items-center mb-2">
                     <label class="block text-sm font-medium">Dividir entre:</label>
-                    <label class="flex items-center space-x-1 text-sm font-bold text-blue-600 cursor-pointer hover:bg-blue-50 p-1 rounded transition">
-                        <input type="checkbox" id="chk-todos" class="rounded cursor-pointer">
-                        <span>Dividir para todos</span>
-                    </label>
+                    <div class="flex items-center space-x-2 text-sm font-bold text-blue-600 hover:bg-blue-50 p-1 rounded transition">
+                        <input type="checkbox" id="chk-todos" class="w-5 h-5 rounded cursor-pointer accent-blue-600">
+                        <label for="chk-todos" class="cursor-pointer select-none">Dividir para todos</label>
+                    </div>
                 </div>
-                <div id="consumidores" class="grid grid-cols-3 md:grid-cols-5 gap-2 border-t pt-3"></div>
+                <div id="consumidores" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 border-t pt-3"></div>
             </div>
 
-            <button id="btn-salvar" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded hover:bg-blue-700 transition">
+            <button id="btn-salvar" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded hover:bg-blue-700 transition text-lg">
                 Adicionar Despesa
             </button>
         </div>
@@ -73,13 +73,13 @@
                         <select id="pix-nome" class="w-full border rounded p-2 focus:ring-2 focus:ring-indigo-400 outline-none"></select>
                         
                         <div class="flex gap-2">
-                            <select id="pix-tipo" class="border rounded p-2 focus:ring-2 focus:ring-indigo-400 outline-none">
+                            <select id="pix-tipo" class="border rounded p-2 focus:ring-2 focus:ring-indigo-400 outline-none w-1/3">
                                 <option value="Celular">Celular</option>
                                 <option value="CPF">CPF</option>
                                 <option value="E-mail">E-mail</option>
                                 <option value="Aleatória">Aleatória</option>
                             </select>
-                            <input type="text" id="pix-chave" class="w-full border rounded p-2 focus:ring-2 focus:ring-indigo-400 outline-none" placeholder="Digite sua chave PIX">
+                            <input type="text" id="pix-chave" class="w-full border rounded p-2 focus:ring-2 focus:ring-indigo-400 outline-none w-2/3" placeholder="Sua chave PIX">
                         </div>
                         
                         <button id="btn-salvar-pix" class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded hover:bg-indigo-700 transition">
@@ -101,7 +101,6 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        // NOVIDADE: Importei o setDoc para salvar o PIX
         import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -128,28 +127,30 @@
         const consumidoresDiv = document.getElementById('consumidores');
         const chkTodos = document.getElementById('chk-todos');
 
-        // Preenche as listas
-        pessoas.forEach(nome => {
-            // Select de quem pagou
+        // Preenche as listas garantindo suporte perfeito para toque no celular
+        pessoas.forEach((nome, index) => {
             let optPagador = document.createElement('option');
             optPagador.value = nome;
             optPagador.textContent = nome;
             pagadorSelect.appendChild(optPagador);
 
-            // Select do PIX
             let optPix = document.createElement('option');
             optPix.value = nome;
             optPix.textContent = nome;
             pixNomeSelect.appendChild(optPix);
 
-            // Checkboxes
-            const label = document.createElement('label');
-            label.className = "flex items-center space-x-2 text-sm";
-            label.innerHTML = `<input type="checkbox" value="${nome}" class="consumidor-chk rounded"> <span>${nome}</span>`;
-            consumidoresDiv.appendChild(label);
+            // Novo formato de Checkbox à prova de falhas
+            const chkId = `chk-${index}`;
+            const div = document.createElement('div');
+            div.className = "flex items-center space-x-2 text-sm";
+            div.innerHTML = `
+                <input type="checkbox" id="${chkId}" value="${nome}" class="consumidor-chk w-5 h-5 rounded cursor-pointer accent-blue-600"> 
+                <label for="${chkId}" class="cursor-pointer select-none">${nome}</label>
+            `;
+            consumidoresDiv.appendChild(div);
         });
 
-        // Lógica do botão "Dividir para todos"
+        // Lógica do botão "Dividir para todos" atualizada
         chkTodos.addEventListener('change', (e) => {
             const checkboxes = document.querySelectorAll('.consumidor-chk');
             checkboxes.forEach(chk => { chk.checked = e.target.checked; });
@@ -163,11 +164,8 @@
             }
         });
 
-        // -----------------------------------------
-        // GERENCIAMENTO DE DESPESAS
-        // -----------------------------------------
-        let despesasGlobais = []; // Guarda as despesas globalmente para recalcular quando um PIX for cadastrado
-        let chavesPixGlobais = {}; // Guarda as chaves PIX
+        let despesasGlobais = []; 
+        let chavesPixGlobais = {}; 
 
         document.getElementById('btn-salvar').addEventListener('click', async () => {
             const desc = document.getElementById('desc').value;
@@ -177,17 +175,27 @@
             const consumidores = Array.from(chks).map(chk => chk.value);
 
             if (!desc || isNaN(valor) || consumidores.length === 0) {
-                return alert("Preencha todos os campos e selecione pelo menos um consumidor!");
+                return alert("Preencha a descrição, o valor e selecione pelo menos um consumidor!");
             }
 
-            await addDoc(collection(db, "despesas"), {
-                desc: desc, valor: valor, pagador: pagador, consumidores: consumidores, data: new Date(), tipo: "despesa"
-            });
+            // Desabilita o botão para evitar clique duplo
+            document.getElementById('btn-salvar').disabled = true;
+            document.getElementById('btn-salvar').innerText = "Salvando...";
 
-            document.getElementById('desc').value = '';
-            document.getElementById('valor').value = '';
-            document.querySelectorAll('.consumidor-chk').forEach(chk => chk.checked = false);
-            chkTodos.checked = false; 
+            try {
+                await addDoc(collection(db, "despesas"), {
+                    desc: desc, valor: valor, pagador: pagador, consumidores: consumidores, data: new Date(), tipo: "despesa"
+                });
+                document.getElementById('desc').value = '';
+                document.getElementById('valor').value = '';
+                document.querySelectorAll('.consumidor-chk').forEach(chk => chk.checked = false);
+                chkTodos.checked = false; 
+            } catch (error) {
+                alert("Erro ao salvar. Tente novamente.");
+            } finally {
+                document.getElementById('btn-salvar').disabled = false;
+                document.getElementById('btn-salvar').innerText = "Adicionar Despesa";
+            }
         });
 
         const q = query(collection(db, "despesas"), orderBy("data", "desc"));
@@ -234,10 +242,6 @@
         });
 
 
-        // -----------------------------------------
-        // GERENCIAMENTO DO PIX
-        // -----------------------------------------
-        
         // Salvar Chave PIX
         document.getElementById('btn-salvar-pix').addEventListener('click', async () => {
             const nome = document.getElementById('pix-nome').value;
@@ -246,8 +250,9 @@
 
             if (!chave) return alert("Por favor, digite a chave PIX!");
 
-            // setDoc salva usando o nome da pessoa como ID. Se já existir, ele atualiza!
+            document.getElementById('btn-salvar-pix').disabled = true;
             await setDoc(doc(db, "pix_keys", nome), { tipo: tipo, chave: chave });
+            document.getElementById('btn-salvar-pix').disabled = false;
             
             document.getElementById('pix-chave').value = '';
             alert(`Chave PIX de ${nome} salva com sucesso!`);
@@ -271,36 +276,43 @@
                 listaPix.innerHTML += `
                     <li class="border-b border-gray-100 last:border-0 pb-1 last:pb-0">
                         <span class="font-bold text-gray-700">${nome}:</span> 
-                        <span class="text-indigo-600">${dados.chave}</span> 
+                        <span class="text-indigo-600 select-all">${dados.chave}</span> 
                         <span class="text-xs text-gray-400">(${dados.tipo})</span>
                     </li>
                 `;
             });
 
-            // Recalcula os acertos para exibir o PIX na lista de dívidas caso alguém atualize
             calcularAcertosESaldos();
         });
 
-
-        // -----------------------------------------
-        // MOTOR DE CÁLCULO
-        // -----------------------------------------
+        // MOTOR DE CÁLCULO COM PROTEÇÃO CONTRA DADOS ANTIGOS (NaN FIX)
         function calcularAcertosESaldos() {
             let saldos = {};
+            // Inicia zerado apenas para as pessoas que estão na lista atual
             pessoas.forEach(p => saldos[p] = 0);
 
             despesasGlobais.forEach(d => {
-                const valorPorPessoa = d.valor / d.consumidores.length;
-                saldos[d.pagador] += d.valor; 
-                d.consumidores.forEach(c => {
-                    saldos[c] -= valorPorPessoa; 
-                });
+                // Proteção: se existir um nome velho no banco, inicializa em 0 para não quebrar a matemática
+                if (saldos[d.pagador] === undefined) saldos[d.pagador] = 0;
+                
+                if (d.consumidores && d.consumidores.length > 0) {
+                    const valorPorPessoa = d.valor / d.consumidores.length;
+                    saldos[d.pagador] += d.valor; 
+                    
+                    d.consumidores.forEach(c => {
+                        // Proteção contra nome velho de consumidor
+                        if (saldos[c] === undefined) saldos[c] = 0;
+                        saldos[c] -= valorPorPessoa; 
+                    });
+                }
             });
 
             const listaSaldos = document.getElementById('lista-saldos');
             listaSaldos.innerHTML = '';
+            
+            // Exibe o saldo apenas para quem está na lista atual
             pessoas.forEach(p => {
-                let valor = saldos[p];
+                let valor = saldos[p] || 0; // Se der algum erro bizarro, força para 0
                 if (valor > 0.01) {
                     listaSaldos.innerHTML += `<li class="flex justify-between items-center p-2 bg-green-50 rounded border border-green-100"><span class="font-bold">${p}</span> <span class="text-green-600">+ R$ ${valor.toFixed(2)}</span></li>`;
                 } else if (valor < -0.01) {
@@ -313,8 +325,8 @@
             let devedores = [];
             let credores = [];
             for (let p in saldos) {
-                if (saldos[p] < -0.01) devedores.push({ nome: p, valor: Math.abs(saldos[p]) });
-                if (saldos[p] > 0.01) credores.push({ nome: p, valor: saldos[p] });
+                if (saldos[p] && saldos[p] < -0.01) devedores.push({ nome: p, valor: Math.abs(saldos[p]) });
+                if (saldos[p] && saldos[p] > 0.01) credores.push({ nome: p, valor: saldos[p] });
             }
 
             const listaAcertos = document.getElementById('lista-acertos');
@@ -326,7 +338,6 @@
                 let cred = credores[j];
                 let valorAcerto = Math.min(dev.valor, cred.valor);
 
-                // Busca o PIX do credor (quem vai receber)
                 let infoPix = '';
                 if(chavesPixGlobais[cred.nome]) {
                     infoPix = `<div class="text-xs mt-1 bg-white p-1 rounded border border-blue-100 text-gray-600">
@@ -362,25 +373,6 @@
             if(listaAcertos.innerHTML === '') {
                 listaAcertos.innerHTML = "<li class='text-gray-500 italic p-3 text-center'>Tudo quite! 🍻</li>";
             }
-
-            document.querySelectorAll('.btn-dar-baixa').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    const devedor = e.target.getAttribute('data-dev');
-                    const credor = e.target.getAttribute('data-cred');
-                    const valorPago = parseFloat(e.target.getAttribute('data-val'));
-
-                    if(confirm(`Confirmar que ${devedor} pagou R$ ${valorPago.toFixed(2)} para ${credor}?`)) {
-                        await addDoc(collection(db, "despesas"), {
-                            desc: `💰 Acerto de Contas`,
-                            valor: valorPago,
-                            pagador: devedor,
-                            consumidores: [credor],
-                            data: new Date(),
-                            tipo: "pagamento"
-                        });
-                    }
-                });
-            });
         }
     </script>
 </body>
